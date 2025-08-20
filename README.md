@@ -33,4 +33,10 @@ image_paths = [
 i = Imprint(image_paths, use_transformer=True, transformer_model="gemma3:12b")
 i.infer()  # Runs OCR pipeline on all images
 i.save("test-images-output")  # Saves processed images and markdown to output_dir
-# Imprint
+```
+
+## Right, But Why?
+
+Vendors for OCR can be very expensive. This is meant to alleviate the cost of image pre-processing and OCR at Northwestern University Libraries. This program is designed to be run on anything from a jank laptop (using the pytesseract model instead of Ollama) to a high-end server (using Ollama's high-parameter models).
+
+We find that using Gemma3:12B is sufficient, and benchmarks at 30s/page on an Apple M4 Pro Macbook.
