@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 import glob
 from typing import ByteString, List, Tuple
 import cv2 as cv
@@ -9,15 +10,29 @@ from tqdm import tqdm
 
 
 class Imprint:
-    def __init__(self, paths: List[str], use_transformer: bool, transformer_model: str):
+    def __init__(
+        self,
+        paths: List[str],
+        use_transformer: bool,
+        transformer_model: str,
+        benchmark: bool,
+    ):
         self.paths = paths
         self.images = [cv.imread(path) for path in paths]
         self.use_transformer = use_transformer
         self.transformer_model = transformer_model
         self.results = None
+        self.benchmark = benchmark
 
-    def _ocr(self, img: ByteString, use_transformer: bool, transformer_model: str):
+    def _ocr(
+        self,
+        img: ByteString,
+        use_transformer: bool,
+        transformer_model: str,
+        benchmark: bool,
+    ):
         b64_str = base64.b64encode(img).decode("utf-8")
+        ocr_start = datetime.now()
 
         if use_transformer:
             system_prompt = (
@@ -37,9 +52,13 @@ class Imprint:
                     },
                 ],
             )
+            if benchmark:
+                ocr_end = datetime.now()
+                return response["message"]["content"], ocr_end - ocr_start
             return response["message"]["content"]
         else:
             try:
+                ocr_start = datetime.now()
                 import pytesseract
                 import numpy as np
 
@@ -47,7 +66,11 @@ class Imprint:
                 nparr = np.frombuffer(img, np.uint8)
                 image = cv.imdecode(nparr, cv.IMREAD_COLOR)
                 text = pytesseract.image_to_string(image)
-                return text
+                if benchmark:
+                    ocr_end = datetime.now()
+                    return text, ocr_end - ocr_start
+                else:
+                    return text
             except ImportError:
                 return "pytesseract not installed. Please install it for OCR without transformers."
 
@@ -105,13 +128,6 @@ class Imprint:
             else:
                 plt.title("Black & White (Not loaded)")
                 plt.axis("off")
-
-            plt.subplot(2, 2, 4)
-            plt.axis("off")
-            plt.title("OCR Result")
-            plt.text(
-                0.5, 0.5, ocr_result, fontsize=12, ha="center", va="center", wrap=True
-            )
 
             plt.tight_layout()
             plt.show()
