@@ -128,7 +128,7 @@ export SINGULARITYENV_OLLAMA_HOST=0.0.0.0:${{OLLAMA_PORT}}
 ollama serve &> serve_ollama_${{SLURM_JOBID}}.log &
 sleep 10
 
-uv run ./main.py -i ./{name} -o ./{output_dir} {args.extra_args} --recursive
+uv run ./main.py -i {subdir} -o ./{output_dir} {args.extra_args} --recursive
 """
 
             script_path = f"submit_{name}.sh"
