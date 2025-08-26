@@ -38,7 +38,7 @@ def main():
     i = Imprint(
         image_paths,
         use_transformer=True,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
-        transformer_model="gemma3:12b",  # IGNORED IF USE_TRANSFORMER IS FALSE
+        transformer_model="gemma3:12b-multigpu",  # IGNORED IF USE_TRANSFORMER IS FALSE
         benchmark=args.benchmark,
     )
     i.infer()

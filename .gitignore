@@ -17,3 +17,10 @@ notebooks
 apollo-missions
 output_figures
 tests
+Modelfile
+*.err
+*.out
+*.def
+*.sif
+*.log
+*.sh
