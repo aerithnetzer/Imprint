@@ -21,6 +21,8 @@ def main():
 
     for name in os.listdir(args.parent_dir):
         subdir = os.path.join(args.parent_dir, name)
+        print(name, subdir)
+        exit()
         if os.path.isdir(subdir):
             output_dir = os.path.join(args.output_root, name)
             os.makedirs(output_dir, exist_ok=True)
