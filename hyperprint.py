@@ -19,10 +19,9 @@ def main():
 
     os.makedirs(args.output_root, exist_ok=True)
 
-    for name in os.listdir(args.parent_dir):
+    for name in [os.listdir(args.parent_dir)[0]]:
         subdir = os.path.join(args.parent_dir, name)
         print(name, subdir)
-        exit()
         if os.path.isdir(subdir):
             output_dir = os.path.join(args.output_root, name)
             os.makedirs(output_dir, exist_ok=True)
@@ -130,7 +129,7 @@ export SINGULARITYENV_OLLAMA_HOST=0.0.0.0:${{OLLAMA_PORT}}
 ollama serve &> serve_ollama_${{SLURM_JOBID}}.log &
 sleep 10
 
-uv run ./main.py -i ./{name} -o ./{output_dir} {args.extra_args}
+uv run ./main.py -i ./{name} -o ./{output_dir} {args.extra_args} --recursive
 """
 
             script_path = f"submit_{name}.sh"
