@@ -26,9 +26,9 @@ def main():
 
     if os.path.isdir(input):
         if recursive:
-            image_paths = sorted(glob.glob(f"{input}/**/*.jpg", recursive=True))
+            image_paths = sorted(glob.glob(f"{input}/**/*.jp2", recursive=True))
         else:
-            image_paths = sorted(glob.glob(f"{input}/*.jpg"))
+            image_paths = sorted(glob.glob(f"{input}/*.jp2"))
     elif os.path.isfile(input):
         image_paths = [input]
     else:
