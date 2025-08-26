@@ -19,13 +19,22 @@ def main():
 
     os.makedirs(args.output_root, exist_ok=True)
 
-    for name in [os.listdir(args.parent_dir)[0]]:
+    for name in os.listdir(args.parent_dir):
         subdir = os.path.join(args.parent_dir, name)
         print(name, subdir)
         if os.path.isdir(subdir):
             output_dir = os.path.join(args.output_root, name)
             os.makedirs(output_dir, exist_ok=True)
 
+            jp2_count = sum(
+                len([f for f in files if f.endswith(".jp2")])
+                for _, _, files in os.walk(subdir)
+            )
+            total_seconds = jp2_count * 30
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            slurm_time = f"{hours}:{minutes:02}:{seconds:02}"
             # Use raw f-string to preserve bash $ and { } syntax
             SLURM_TEMPLATE = rf"""#!/bin/bash
 #SBATCH --account={args.account}
@@ -34,7 +43,7 @@ def main():
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --job-name=multi-ollama
-#SBATCH --time=1:00:00
+#SBATCH --time={slurm_time}
 #SBATCH --mem=16GB
 #SBATCH --output=output-%j.out
 #SBATCH --error=error-%j.err
