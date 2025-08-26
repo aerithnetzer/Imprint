@@ -93,6 +93,7 @@ class Imprint:
                     img_bytes,
                     use_transformer=self.use_transformer,
                     transformer_model=self.transformer_model,
+                    benchmark=self.benchmark,
                 )
                 results.append((img, dns, bw_img, ocr_result))
             else:
@@ -168,6 +169,7 @@ def main():
         image_paths,
         use_transformer=False,
         transformer_model="gemma3:12b",  # IGNORED IF USE_TRANSFORMER IS FALSE
+        benchmark=False,
     )
     i.infer()
     i.save("apollo-missions")

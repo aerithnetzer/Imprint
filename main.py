@@ -11,30 +11,38 @@ parser.add_argument(
     "-o",
     "--output",
 )
-parser.add_argument("-b", "--benchmark", action="benchmark_true")
+parser.add_argument("-b", "--benchmark", action="store_true")
 parser.add_argument("-a", "--alias")
-parser.add_argument("-v", "--verbose", action="verbose_true")
-parser.add_argument("-r", "--recursive", action="recursive_true")
+parser.add_argument("-v", "--verbose", action="store_true")
+parser.add_argument("-r", "--recursive", action="store_true")
 args = parser.parse_args()
 
 
 def main():
-    image_paths = sorted(glob.glob(f"./{args.directoryname}/*.jpg"))
-    if os.path.isdir(args.input):
-        if args.recursive:
-            image_paths = f"{args.input}/**/.jpg"
-        image_paths = sorted(glob.glob(f"{args.input}/*.jpg"))
-    elif os.path.isfile(args.input):
-        image_paths = [args.input]
+    image_paths = []
+    input: str = str(args.input)
+    recursive: bool = bool(args.recursive)
+    alias: bool = bool(args.alias)
+
+    if os.path.isdir(input):
+        if recursive:
+            image_paths = sorted(glob.glob(f"{input}/**/*.jpg", recursive=True))
+        else:
+            image_paths = sorted(glob.glob(f"{input}/*.jpg"))
+    elif os.path.isfile(input):
+        image_paths = [input]
+    else:
+        print("Input path does not exist or is invalid.")
+        return
 
     i = Imprint(
         image_paths,
-        use_transformer=False,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
+        use_transformer=True,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
         transformer_model="gemma3:12b",  # IGNORED IF USE_TRANSFORMER IS FALSE
         benchmark=args.benchmark,
     )
     i.infer()
-    i.save("apollo-missions")
+    i.save(args.output)
 
 
 if __name__ == "__main__":
