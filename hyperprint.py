@@ -29,13 +29,12 @@ def main():
             # Use raw f-string to preserve bash $ and { } syntax
             SLURM_TEMPLATE = rf"""#!/bin/bash
 #SBATCH --account={args.account}
-#SBATCH --partition=gengpu
+#SBATCH --partition=short
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks-per-node=1
 #SBATCH --job-name=multi-ollama
-#SBATCH --time=0:30:00
-#SBATCH --mem=16GB
-#SBATCH --gres=gpu:1
+#SBATCH --time=0:05:00
+#SBATCH --mem=4GB
 #SBATCH --output=output-%j.out
 #SBATCH --error=error-%j.err
 #SBATCH --mail-type=ALL

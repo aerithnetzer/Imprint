@@ -23,12 +23,14 @@ def main():
     input: str = str(args.input)
     recursive: bool = bool(args.recursive)
     alias: bool = bool(args.alias)
-
+    print(input, recursive, alias)
     if os.path.isdir(input):
         if recursive:
             image_paths = sorted(glob.glob(f"{input}/**/*.jp2", recursive=True))
+            print(image_paths)
         else:
             image_paths = sorted(glob.glob(f"{input}/*.jp2"))
+            print(image_paths)
     elif os.path.isfile(input):
         image_paths = [input]
     else:
