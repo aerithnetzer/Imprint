@@ -27,7 +27,10 @@ for image_path in image_files:
             "role": "user",
             "content": [
                 {"type": "image"},
-                {"type": "text", "text": "Extract all readable text from this image."},
+                {
+                    "type": "text",
+                    "text": "Extract all readable text from this image. Return in markdown format.",
+                },
             ],
         }
     ]
