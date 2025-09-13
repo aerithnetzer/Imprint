@@ -1,4 +1,17 @@
-# Imprint
+# Imprint (Pre-Alpha State)
+
+This code will need extensive refactoring in the future. It does do the job, but it could be better organized and include much more features.
+
+## Feature Roadmap
+
+- [ ] OCR via Huggingface API
+- [x] OCR via Ollama
+- [x] OCR via Tesseract
+- [x] Image de-noising
+- [x] Conversion from RGB to BW
+- [ ] Background Removal
+- [ ] De-skewing
+- [ ] Cropping
 
 Imprint is a document OCR pipeline manager that does the following:
 
