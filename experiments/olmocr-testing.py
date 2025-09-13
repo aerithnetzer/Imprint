@@ -9,15 +9,9 @@ from transformers.image_utils import load_image
 DEVICE = "cuda:0"
 
 # Note that passing the image urls (instead of the actual pil images) to the processor is also possible
-image1 = load_image(
-    "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-)
-image2 = load_image(
-    "https://cdn.britannica.com/59/94459-050-DBA42467/Skyline-Chicago.jpg"
-)
-image3 = load_image(
-    "https://cdn.britannica.com/68/170868-050-8DDE8263/Golden-Gate-Bridge-San-Francisco.jpg"
-)
+image1 = load_image("../test-images/35556036056489_00000001.jpg")
+image2 = load_image("../test-images/35556036056489_00000002.jpg")
+image3 = load_image("../test-images/35556036056489_00000003.jpg")
 
 processor = AutoProcessor.from_pretrained("HuggingFaceM4/Idefics3-8B-Llama3")
 model = AutoModelForVision2Seq.from_pretrained(
