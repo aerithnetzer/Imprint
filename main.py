@@ -26,10 +26,10 @@ def main():
     print(input, recursive, alias)
     if os.path.isdir(input):
         if recursive:
-            image_paths = sorted(glob.glob(f"{input}/**/*.jp2", recursive=True))
+            image_paths = sorted(glob.glob(f"{input}/**/*.jpg", recursive=True))
             print(image_paths)
         else:
-            image_paths = sorted(glob.glob(f"{input}/*.jp2"))
+            image_paths = sorted(glob.glob(f"{input}/*.jpg"))
             print(image_paths)
     elif os.path.isfile(input):
         image_paths = [input]
@@ -39,8 +39,9 @@ def main():
 
     i = Imprint(
         image_paths,
-        use_transformer=True,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
-        transformer_model="gemma3:12b-multigpu",  # IGNORED IF USE_TRANSFORMER IS FALSE
+        use_ollama=False,
+        use_hf=True,
+        transformer_model="microsoft/trocr-large-printed",  # IGNORED IF USE_TRANSFORMER IS FALSE
         benchmark=args.benchmark,
     )
     i.infer()

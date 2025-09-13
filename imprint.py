@@ -1,4 +1,5 @@
 from pathlib import Path
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from datetime import datetime
 import glob
 from typing import ByteString, List, Tuple
@@ -13,28 +14,48 @@ class Imprint:
     def __init__(
         self,
         paths: List[str],
-        use_transformer: bool,
+        use_ollama: bool,
+        use_hf: bool,
         transformer_model: str,
         benchmark: bool,
     ):
         self.paths = paths
-        self.images = [cv.imread(path) for path in paths]
-        self.use_transformer = use_transformer
+        self.images = [path for path in paths]
+        self.use_ollama = use_ollama
+        self.use_hf = use_hf
         self.transformer_model = transformer_model
         self.results = None
         self.benchmark = benchmark
 
     def _ocr(
         self,
-        img: ByteString,
-        use_transformer: bool,
+        img,
+        use_ollama: bool,
+        use_hf: bool,
         transformer_model: str,
         benchmark: bool,
     ):
         b64_str = base64.b64encode(img).decode("utf-8")
         ocr_start = datetime.now()
+        if use_hf:
+            from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+            from PIL import Image
+            import io
 
-        if use_transformer:
+            processor = TrOCRProcessor.from_pretrained(transformer_model)
+            model = VisionEncoderDecoderModel.from_pretrained(transformer_model)
+
+            image = Image.open(io.BytesIO(img)).convert("RGB")
+            pixel_values = processor(image, return_tensors="pt").pixel_values
+            generated_ids = model.generate(pixel_values)
+            text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            if benchmark:
+                ocr_end = datetime.now()
+                print(ocr_end - ocr_start)
+                return text, ocr_end - ocr_start
+            return text
+
+        if use_ollama:
             system_prompt = (
                 "You are an OCR extraction assistant. "
                 "Do not add any commentary, explanation, or extra text. "
@@ -43,6 +64,12 @@ class Imprint:
             prompt = "Extract the text from this image:\n\n"
             response = ollama.chat(
                 model=transformer_model,
+                options={
+                    "seed": 42,
+                    "temperature": 0.1,
+                    "top_p": 0.9,
+                    "top_k": 40,
+                },
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {
@@ -54,6 +81,7 @@ class Imprint:
             )
             if benchmark:
                 ocr_end = datetime.now()
+                print(ocr_end - ocr_start)
                 return response["message"]["content"], ocr_end - ocr_start
             return response["message"]["content"]
         else:
@@ -68,6 +96,7 @@ class Imprint:
                 text = pytesseract.image_to_string(image)
                 if benchmark:
                     ocr_end = datetime.now()
+                    print(ocr_end - ocr_start)
                     return text, ocr_end - ocr_start
                 else:
                     return text
@@ -86,12 +115,14 @@ class Imprint:
         results = []
         for img in tqdm(self.images, desc="Processing pages"):
             if img is not None:
+                img = cv.imread(img)
                 dns = self._denoise(img)
                 bw_img = self._make_bw(dns)
                 img_bytes = cv.imencode(".png", bw_img)[1].tobytes()
                 ocr_result = self._ocr(
                     img_bytes,
-                    use_transformer=self.use_transformer,
+                    use_ollama=self.use_ollama,
+                    use_hf=self.use_hf,
                     transformer_model=self.transformer_model,
                     benchmark=self.benchmark,
                 )
@@ -167,8 +198,9 @@ def main():
     image_paths = sorted(glob.glob("./test-images/*.jpg"))
     i = Imprint(
         image_paths,
-        use_transformer=False,
-        transformer_model="gemma3:12b",  # IGNORED IF USE_TRANSFORMER IS FALSE
+        use_ollama=True,
+        use_hf=False,
+        transformer_model="microsoft/trocr-base-handwritten",  # IGNORED IF USE_TRANSFORMER IS FALSE
         benchmark=False,
     )
     i.infer()
