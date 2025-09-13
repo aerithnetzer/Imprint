@@ -3,5 +3,7 @@ from transformers import pipeline
 
 pipe = pipeline("image-to-text", model="allenai/olmOCR-7B-0825-FP8")
 print(
-    "/projects/p32234/projects/aerith/Imprint/test-images/35556036056489_00000002.jpg"
+    pipe(
+        "/projects/p32234/projects/aerith/Imprint/test-images/35556036056489_00000002.jpg"
+    )
 )
