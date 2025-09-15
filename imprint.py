@@ -1,4 +1,8 @@
 from pathlib import Path
+import io
+from PIL import Image
+import numpy as np
+import logging
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from datetime import datetime
 import glob
@@ -108,6 +112,71 @@ class Imprint:
         dst = cv.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
         return dst
 
+    def _background_removal(self, img, return_bytes=False, show=False, show_mask=False):
+        """
+        Remove background from an image using GrabCut.
+
+        Args:
+            img (str | Path | np.ndarray): Image path or numpy array.
+            return_bytes (bool): If True, return PNG bytes instead of RGBA array.
+            show (bool): If True, display the result in a window.
+            show_mask (bool): If True, display the mask instead of the RGBA image.
+
+        Returns:
+            np.ndarray | bytes | None:
+                RGBA numpy array if return_bytes=False,
+                PNG bytes if return_bytes=True,
+                None if image cannot be read.
+        """
+        # Load image if path was given
+        if isinstance(img, (str, Path)):
+            img = cv.imread(str(img))
+            if img is None:
+                logging.warning(f"Skipping {img} (unable to read)")
+                return None
+        elif not isinstance(img, np.ndarray):
+            raise TypeError("img must be a path or a numpy.ndarray")
+
+        height, width = img.shape[:2]
+        margin = 0.05  # 5% margin
+        x = int(width * margin)
+        y = int(height * margin)
+        rect = (x, y, width - 2 * x, height - 2 * y)
+
+        # Create mask and models
+        mask = np.zeros(img.shape[:2], np.uint8)
+        bgdModel = np.zeros((1, 65), np.float64)
+        fgdModel = np.zeros((1, 65), np.float64)
+
+        # Apply GrabCut
+        cv.grabCut(img, mask, rect, bgdModel, fgdModel, 5, cv.GC_INIT_WITH_RECT)
+
+        # Binary mask
+        mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype("uint8")
+
+        # Convert to RGBA
+        output_rgba = cv.cvtColor(img, cv.COLOR_BGR2BGRA)
+        output_rgba[:, :, 3] = mask2 * 255  # alpha channel
+
+        if show_mask:
+            cv.imshow("GrabCut Mask", mask2 * 255)
+            cv.waitKey(0)
+            cv.destroyAllWindows()
+            return mask2  # return mask for inspection
+
+        if show:
+            cv.imshow("Background Removed", output_rgba)
+            cv.waitKey(0)
+            cv.destroyAllWindows()
+
+        if return_bytes:
+            image_pil = Image.fromarray(output_rgba)
+            buf = io.BytesIO()
+            image_pil.save(buf, format="PNG")
+            return buf.getvalue()  # PNG bytes
+
+        return output_rgba  # RGBA numpy array
+
     def _make_bw(self, img):
         (thresh, blackAndWhiteImage) = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
         return blackAndWhiteImage
@@ -119,7 +188,9 @@ class Imprint:
                 img = cv.imread(img)
                 dns = self._denoise(img)
                 bw_img = self._make_bw(dns)
-                img_bytes = cv.imencode(".png", bw_img)[1].tobytes()
+                removed_background = self._background_removal(bw_img, return_bytes=True)
+
+                img_bytes = removed_background
                 ocr_result = self._ocr(
                     img_bytes,
                     use_ollama=self.use_ollama,
