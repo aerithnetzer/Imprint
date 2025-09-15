@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "accelerate>=1.10.0",
     "compressed-tensors>=0.11.0",
+    "easyocr>=1.7.2",
     "layoutparser[effdet]>=0.3.4",
     "loguru>=0.7.3",
     "matplotlib>=3.10.5",
@@ -14,7 +15,6 @@ dependencies = [
     "ollama>=0.5.3",
     "opencv-python>=4.12.0.88",
     "paddleocr[all]>=3.2.0",
-    "paddlepaddle>=3.1.1",
     "pycocotools>=2.0.10",
     "pypdf2>=3.0.1",
     "pytesseract>=0.3.13",

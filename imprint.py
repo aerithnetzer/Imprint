@@ -69,6 +69,7 @@ class Imprint:
                     "temperature": 0.1,
                     "top_p": 0.9,
                     "top_k": 40,
+                    "repetition_penalty": 1.25,
                 },
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -186,26 +187,9 @@ class Imprint:
                 if bw_img is not None:
                     cv.imwrite(bw_path, bw_img)
                 # Write markdown
-                md_file.write(f"# Page {idx + 1}\n\n")
-                md_file.write(f"![Original]({os.path.basename(orig_path)})\n\n")
-                md_file.write(f"![Denoised]({os.path.basename(dns_path)})\n\n")
-                md_file.write(f"![Black & White]({os.path.basename(bw_path)})\n\n")
+                # md_file.write(f"# Page {idx + 1}\n\n")
+                # md_file.write(f"![Original]({os.path.basename(orig_path)})\n\n")
+                # md_file.write(f"![Denoised]({os.path.basename(dns_path)})\n\n")
+                # md_file.write(f"![Black & White]({os.path.basename(bw_path)})\n\n")
                 md_file.write(f"{ocr_result}\n\n")
         print(f"Saved markdown and images to {output_dir}")
-
-
-def main():
-    image_paths = sorted(glob.glob("./test-images/*.jpg"))
-    i = Imprint(
-        image_paths,
-        use_ollama=True,
-        use_hf=False,
-        transformer_model="microsoft/trocr-base-handwritten",  # IGNORED IF USE_TRANSFORMER IS FALSE
-        benchmark=False,
-    )
-    i.infer()
-    i.save("apollo-missions")
-
-
-if __name__ == "__main__":
-    main()

@@ -19,17 +19,31 @@ args = parser.parse_args()
 
 
 def main():
+    valid_image_suffixes = ["jpg", "jp2", "png", "tiff"]
     image_paths = []
     input: str = str(args.input)
     recursive: bool = bool(args.recursive)
     alias: bool = bool(args.alias)
     print(input, recursive, alias)
+    norm_image_paths = []
     if os.path.isdir(input):
+        image_paths = sorted(glob.glob(f"{input}/**/*", recursive=True))
+        print(image_paths)
         if recursive:
-            image_paths = sorted(glob.glob(f"{input}/**/*.jpg", recursive=True))
-            print(image_paths)
+            for i in image_paths:
+                ext = str(os.path.splitext(i)[-1]).replace(".", "")
+                if ext in valid_image_suffixes:
+                    norm_image_paths.append(i)
+
+            print(norm_image_paths)
         else:
-            image_paths = sorted(glob.glob(f"{input}/*.jpg"))
+            image_paths = sorted(glob.glob(f"{input}/*"))
+            for i in image_paths:
+                ext = str(os.path.splitext(i)[-1]).replace(".", "")
+                if ext in valid_image_suffixes:
+                    norm_image_paths.append(i)
+
+            print(norm_image_paths)
             print(image_paths)
     elif os.path.isfile(input):
         image_paths = [input]
@@ -38,11 +52,10 @@ def main():
         return
 
     i = Imprint(
-        image_paths,
-        use_transformer=False,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
-        transformer_model="gemma3:12b-multigpu",  # IGNORED IF USE_TRANSFORMER IS FALSE
-        use_ollama=False,
-        use_hf=True,
+        norm_image_paths,
+        use_ollama=True,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
+        transformer_model="gemma3:4b",  # IGNORED IF USE_TRANSFORMER IS FALSE
+        use_hf=False,
         benchmark=args.benchmark,
     )
     i.infer()
