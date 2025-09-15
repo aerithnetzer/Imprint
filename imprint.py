@@ -39,7 +39,8 @@ class Imprint:
         transformer_model: str,
         benchmark: bool,
     ):
-        b64_str = base64.b64encode(img).decode("utf-8")
+        success, encoded_image = cv.imencode(".png", img)
+        b64_str = base64.b64encode(encoded_image).decode("utf-8")
         ocr_start = datetime.now()
         if use_hf:
             from transformers import TrOCRProcessor, VisionEncoderDecoderModel
@@ -181,6 +182,28 @@ class Imprint:
         (thresh, blackAndWhiteImage) = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
         return blackAndWhiteImage
 
+    def _deskew(self, img):
+        img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        coords = cv.findNonZero(img)
+        angle = cv.minAreaRect(coords)[-1]
+        angle = -angle
+        # Normalize angle so small skews stay small
+        if angle < -45:
+            angle = 90 + angle
+
+        (h, w) = img.shape[:2]
+
+        M = cv.getRotationMatrix2D((w // 2, h // 2), angle, 1.0)
+        deskewed = cv.warpAffine(
+            img, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE
+        )
+        return deskewed
+
+    def _array_to_base64(self, img):
+        img = Image.fromarray(img)
+        buff = io.BytesIO()
+        return base64.b64encode(buff.getvalue()).decode("utf-8")
+
     def infer(self) -> List[Tuple]:
         results = []
         for img in tqdm(self.images, desc="Processing pages"):
@@ -188,11 +211,12 @@ class Imprint:
                 img = cv.imread(img)
                 dns = self._denoise(img)
                 bw_img = self._make_bw(dns)
-                removed_background = self._background_removal(bw_img, return_bytes=True)
-
-                img_bytes = removed_background
+                removed_background = self._background_removal(
+                    bw_img, return_bytes=False
+                )
+                deskewed = self._deskew(removed_background)
                 ocr_result = self._ocr(
-                    img_bytes,
+                    deskewed,
                     use_ollama=self.use_ollama,
                     use_hf=self.use_hf,
                     transformer_model=self.transformer_model,
