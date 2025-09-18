@@ -1,4 +1,5 @@
 from imprint import Imprint
+from pytesseract import Output
 import os
 import glob
 import argparse
@@ -53,13 +54,15 @@ def main():
 
     i = Imprint(
         norm_image_paths,
-        use_ollama=True,  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
-        transformer_model="gemma3:4b",  # IGNORED IF USE_TRANSFORMER IS FALSE
+        use_ollama=False,
+        transformer_model="",  # If True, use the transformer model defined in the transformer_model parameter. If False will default to pytesseract
         use_hf=False,
         benchmark=args.benchmark,
     )
-    i.infer()
-    i.save(args.output)
+
+    image = i.load("./tests/859.jpg")
+    image = i.correct_rotation(image)
+    i.show(image)
 
 
 if __name__ == "__main__":

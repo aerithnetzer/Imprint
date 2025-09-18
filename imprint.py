@@ -1,13 +1,23 @@
+# TODO:
+# This needs more extensive documentation
+# I also think that we should not have so many arguments.
+# Perhaps we do something where each step is a method call. So that the user does:
+# Imprint.binarize.
+# Imprint.remove_background.
+# Imprint.ocr(method arguments about HF, Ollama, Tesseract, etc. can go here)
+# That way we can tune hyperparameters more easily, and then wrap each step in a CLI at the end.
+import imutils
 from pathlib import Path
+from loguru import logger
 import io
 from PIL import Image
 import numpy as np
 import logging
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from datetime import datetime
-import glob
-from typing import ByteString, List, Tuple
-import cv2 as cv
+from typing import List, Tuple
+import cv2
+import pytesseract
+from pytesseract import Output
 import matplotlib.pyplot as plt
 import base64
 import ollama
@@ -17,19 +27,85 @@ from tqdm import tqdm
 class Imprint:
     def __init__(
         self,
-        paths: List[str],
-        use_ollama: bool,
-        use_hf: bool,
-        transformer_model: str,
-        benchmark: bool,
+        paths: list | None = None,
+        use_ollama: bool = False,
+        use_hf: bool = False,
+        transformer_model: str = "",
+        benchmark: bool = False,
     ):
-        self.paths = paths
-        self.images = [path for path in paths]
+        self.paths = paths or []
+        self.images = [path for path in self.paths]
         self.use_ollama = use_ollama
         self.use_hf = use_hf
         self.transformer_model = transformer_model
         self.results = None
         self.benchmark = benchmark
+
+    @staticmethod
+    def ocr(img, method="tesseract", model=""):
+        image = Image.fromarray(img)
+        options = ["huggingface", "tesseract", "ollama", "marker"]
+        if method.lower() not in options:
+            logger.critical(
+                f"{method} not found. Choose from 'ollama', 'tesseract' or 'huggingface'"
+            )
+            raise ValueError(f"Invalid OCR method: {method}")
+
+        return pytesseract.image_to_string(image)
+
+    @staticmethod
+    def deskew_with_hough(img) -> np.ndarray:
+        """Deskew an image with text using Hough line detection.
+
+        Args:
+            img (np.ndarray): Input OpenCV image (BGR or grayscale).
+
+        Returns:
+            np.ndarray: Deskewed OpenCV image (same dtype/shape).
+        """
+        # Convert to grayscale if needed
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img.copy()
+
+        # Invert and detect edges
+        gray = cv2.bitwise_not(gray)
+        edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+        # Hough transform to detect lines
+        lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
+        if lines is None:
+            return img  # No correction
+
+        # Collect angles of near-horizontal lines
+        angles = []
+        for rho, theta in lines[:, 0]:
+            angle = (theta * 180 / np.pi) - 90
+            if -45 < angle < 45:
+                angles.append(angle)
+
+        if not angles:
+            return img  # No suitable lines
+
+        median_angle = np.median(angles)
+
+        # Rotate around center
+        (h, w) = img.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, median_angle, 1.0)
+        rotated = cv2.warpAffine(
+            img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
+        )
+
+        return rotated
+
+    @staticmethod
+    def binarize(img):
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        blur = cv2.GaussianBlur(img, (5, 5), 0)
+        _, th3 = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        return th3
 
     def _ocr(
         self,
@@ -39,7 +115,7 @@ class Imprint:
         transformer_model: str,
         benchmark: bool,
     ):
-        success, encoded_image = cv.imencode(".png", img)
+        success, encoded_image = cv2.imencode(".png", img)
         b64_str = base64.b64encode(encoded_image).decode("utf-8")
         ocr_start = datetime.now()
         if use_hf:
@@ -64,17 +140,17 @@ class Imprint:
             system_prompt = (
                 "You are an OCR extraction assistant. "
                 "Do not add any commentary, explanation, or extra text. "
-                "Only output the exact text found in the image, formatted as requested (markdown tables, footnotes, headers)."
+                "Only output the exact text found in the image, formatted as requested (markdown tables, footnotes, headers). Do not repeat text."
             )
             prompt = "Extract the text from this image:\n\n"
             response = ollama.chat(
                 model=transformer_model,
                 options={
                     "seed": 42,
-                    "temperature": 0.1,
-                    "top_p": 0.9,
+                    "temperature": 0.35,
+                    "top_p": 0.95,
                     "top_k": 40,
-                    "repetition_penalty": 1.25,
+                    "repetition_penalty": 50,
                 },
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -95,11 +171,12 @@ class Imprint:
                 ocr_start = datetime.now()
                 import pytesseract
                 import numpy as np
+                from PIL import Image
 
+                print(type(img))
+                img = Image.fromarray(img)
                 # Decode image bytes to numpy array
-                nparr = np.frombuffer(img, np.uint8)
-                image = cv.imdecode(nparr, cv.IMREAD_COLOR)
-                text = pytesseract.image_to_string(image)
+                text = pytesseract.image_to_string(img)
                 if benchmark:
                     ocr_end = datetime.now()
                     print(ocr_end - ocr_start)
@@ -110,18 +187,28 @@ class Imprint:
                 return "pytesseract not installed. Please install it for OCR without transformers."
 
     def _denoise(self, img):
-        dst = cv.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
+        dst = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
         return dst
 
-    def _background_removal(self, img, return_bytes=False, show=False, show_mask=False):
+    def _background_removal(
+        self,
+        img,
+        return_bytes: bool = False,
+        show: bool = False,
+        show_mask: bool = False,
+        scale: float = 0.25,
+        iterations: int = 3,
+    ):
         """
-        Remove background from an image using GrabCut.
+        Remove background from an image using GrabCut with optimization (downscaling).
 
         Args:
             img (str | Path | np.ndarray): Image path or numpy array.
             return_bytes (bool): If True, return PNG bytes instead of RGBA array.
             show (bool): If True, display the result in a window.
             show_mask (bool): If True, display the mask instead of the RGBA image.
+            scale (float): Resize factor for faster GrabCut (0.25 = 25% size).
+            iterations (int): Number of GrabCut iterations (lower = faster).
 
         Returns:
             np.ndarray | bytes | None:
@@ -131,7 +218,7 @@ class Imprint:
         """
         # Load image if path was given
         if isinstance(img, (str, Path)):
-            img = cv.imread(str(img))
+            img = cv2.imread(str(img))
             if img is None:
                 logging.warning(f"Skipping {img} (unable to read)")
                 return None
@@ -139,53 +226,76 @@ class Imprint:
             raise TypeError("img must be a path or a numpy.ndarray")
 
         height, width = img.shape[:2]
-        margin = 0.05  # 5% margin
-        x = int(width * margin)
-        y = int(height * margin)
-        rect = (x, y, width - 2 * x, height - 2 * y)
+
+        # Downscale for faster GrabCut
+        if scale < 1.0:
+            small = cv2.resize(img, (int(width * scale), int(height * scale)))
+        else:
+            small = img.copy()
+
+        # Define rectangle with margin (relative to small image)
+        margin = 0.05
+        sw, sh = small.shape[1], small.shape[0]
+        x = int(sw * margin)
+        y = int(sh * margin)
+        rect = (x, y, sw - 2 * x, sh - 2 * y)
 
         # Create mask and models
-        mask = np.zeros(img.shape[:2], np.uint8)
+        mask_small = np.zeros(small.shape[:2], np.uint8)
         bgdModel = np.zeros((1, 65), np.float64)
         fgdModel = np.zeros((1, 65), np.float64)
 
-        # Apply GrabCut
-        cv.grabCut(img, mask, rect, bgdModel, fgdModel, 5, cv.GC_INIT_WITH_RECT)
+        # Run GrabCut on small image
+        cv2.grabCut(
+            small,
+            mask_small,
+            rect,
+            bgdModel,
+            fgdModel,
+            iterations,
+            cv2.GC_INIT_WITH_RECT,
+        )
 
-        # Binary mask
-        mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype("uint8")
+        # Convert GrabCut output to binary mask
+        mask_small = np.where((mask_small == 2) | (mask_small == 0), 0, 1).astype(
+            "uint8"
+        )
 
-        # Convert to RGBA
-        output_rgba = cv.cvtColor(img, cv.COLOR_BGR2BGRA)
-        output_rgba[:, :, 3] = mask2 * 255  # alpha channel
+        # Upscale mask to original resolution
+        mask = cv2.resize(mask_small, (width, height), interpolation=cv2.INTER_NEAREST)
 
+        # Convert original image to RGBA with alpha channel
+        output_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+        output_rgba[:, :, 3] = mask * 255
+
+        # Debug options
         if show_mask:
-            cv.imshow("GrabCut Mask", mask2 * 255)
-            cv.waitKey(0)
-            cv.destroyAllWindows()
-            return mask2  # return mask for inspection
+            cv2.imshow("GrabCut Mask", mask * 255)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            return mask
 
         if show:
-            cv.imshow("Background Removed", output_rgba)
-            cv.waitKey(0)
-            cv.destroyAllWindows()
+            cv2.imshow("Background Removed", output_rgba)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
         if return_bytes:
             image_pil = Image.fromarray(output_rgba)
             buf = io.BytesIO()
             image_pil.save(buf, format="PNG")
-            return buf.getvalue()  # PNG bytes
+            return buf.getvalue()
 
-        return output_rgba  # RGBA numpy array
+        return output_rgba
 
     def _make_bw(self, img):
-        (thresh, blackAndWhiteImage) = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
+        (thresh, blackAndWhiteImage) = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
         return blackAndWhiteImage
 
     def _deskew(self, img):
-        img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        coords = cv.findNonZero(img)
-        angle = cv.minAreaRect(coords)[-1]
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        coords = cv2.findNonZero(img)
+        angle = cv2.minAreaRect(coords)[-1]
         angle = -angle
         # Normalize angle so small skews stay small
         if angle < -45:
@@ -193,9 +303,9 @@ class Imprint:
 
         (h, w) = img.shape[:2]
 
-        M = cv.getRotationMatrix2D((w // 2, h // 2), angle, 1.0)
-        deskewed = cv.warpAffine(
-            img, M, (w, h), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE
+        M = cv2.getRotationMatrix2D((w // 2, h // 2), angle, 1.0)
+        deskewed = cv2.warpAffine(
+            img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
         )
         return deskewed
 
@@ -204,11 +314,91 @@ class Imprint:
         buff = io.BytesIO()
         return base64.b64encode(buff.getvalue()).decode("utf-8")
 
+    def _remove_artifacts(
+        self,
+        img,
+        nlm_strength=10,
+        min_component_area=15,
+        max_component_area=None,
+        aspect_ratio_filter=None,
+    ):
+        """
+        Advanced version with more control over parameters
+
+        Args:
+            image_path: Input image path
+            output_path: Output path (optional)
+            nlm_strength: NLM denoising strength (higher = more denoising)
+            min_component_area: Minimum area to keep components
+            max_component_area: Maximum area to keep components (None = no limit)
+            aspect_ratio_filter: (min_ratio, max_ratio) to filter by aspect ratio
+        """
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img.copy()
+
+        # Ensure proper data type
+        print("Type of gray", gray.dtype)
+        if gray.dtype == np.uint8:
+            gray = gray.astype(np.uint8)
+            # Apply NLM denoising
+            denoised = cv2.fastNlMeansDenoising(
+                img, None, h=nlm_strength, templateWindowSize=7, searchWindowSize=21
+            )
+
+            # Threshold
+            _, binary = cv2.threshold(
+                denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
+
+            # Connected components analysis
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+                255 - binary, connectivity=8
+            )
+
+            # Create cleaned image
+            cleaned = binary.copy()
+
+            for i in range(1, num_labels):
+                area = stats[i, cv2.CC_STAT_AREA]
+                width = stats[i, cv2.CC_STAT_WIDTH]
+                height = stats[i, cv2.CC_STAT_HEIGHT]
+
+                should_remove = False
+
+                # Area filter
+                if area < min_component_area:
+                    should_remove = True
+
+                if max_component_area and area > max_component_area:
+                    should_remove = True
+
+                # Aspect ratio filter
+                if aspect_ratio_filter and height > 0:
+                    aspect_ratio = width / height
+                    min_ratio, max_ratio = aspect_ratio_filter
+                    if aspect_ratio < min_ratio or aspect_ratio > max_ratio:
+                        should_remove = True
+
+                if should_remove:
+                    cleaned[labels == i] = 255
+
+            return cleaned
+
+    def load(self, image_path):
+        return cv2.imread(image_path)
+
     def infer(self) -> List[Tuple]:
         results = []
+        logger.info("Starting inference")
         for img in tqdm(self.images, desc="Processing pages"):
             if img is not None:
-                img = cv.imread(img)
+                logger.info(f"Processing {img}")
+                logger.info("Reading file")
+                img = self.load(img)
+                logger.info(f"Fileshape: {img.shape}")
+                logger.info("Denoising")
                 dns = self._denoise(img)
                 bw_img = self._make_bw(dns)
                 removed_background = self._background_removal(
@@ -228,37 +418,11 @@ class Imprint:
         self.results = results
         return results
 
-    def show(self):
-        results = self.infer()
-        for idx, (orig, dns, bw_img, ocr_result) in enumerate(results):
-            plt.figure(figsize=(10, 8))
-            plt.suptitle(f"Page {idx + 1}")
-            plt.subplot(2, 2, 1)
-            if orig is not None:
-                plt.imshow(orig)
-                plt.title("Original")
-            else:
-                plt.title("Original (Not loaded)")
-                plt.axis("off")
-
-            plt.subplot(2, 2, 2)
-            if dns is not None:
-                plt.imshow(dns)
-                plt.title("Denoised")
-            else:
-                plt.title("Denoised (Not loaded)")
-                plt.axis("off")
-
-            plt.subplot(2, 2, 3)
-            if bw_img is not None:
-                plt.imshow(bw_img)
-                plt.title("Black & White")
-            else:
-                plt.title("Black & White (Not loaded)")
-                plt.axis("off")
-
-            plt.tight_layout()
-            plt.show()
+    @staticmethod
+    def show(image):
+        cv2.imshow("Imprint", image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     def save(self, output_dir: str, output_md: str = "output.md"):
         import os
@@ -276,15 +440,15 @@ class Imprint:
                 dns_path = os.path.join(output_dir, f"{page_prefix}_denoised.png")
                 bw_path = os.path.join(output_dir, f"{page_prefix}_bw.png")
                 if orig is not None:
-                    cv.imwrite(orig_path, orig)
+                    cv2.imwrite(orig_path, orig)
                 if dns is not None:
-                    cv.imwrite(dns_path, dns)
+                    cv2.imwrite(dns_path, dns)
                 if bw_img is not None:
-                    cv.imwrite(bw_path, bw_img)
+                    cv2.imwrite(bw_path, bw_img)
                 # Write markdown
-                # md_file.write(f"# Page {idx + 1}\n\n")
-                # md_file.write(f"![Original]({os.path.basename(orig_path)})\n\n")
-                # md_file.write(f"![Denoised]({os.path.basename(dns_path)})\n\n")
-                # md_file.write(f"![Black & White]({os.path.basename(bw_path)})\n\n")
+                md_file.write(f"# Page {idx + 1}\n\n")
+                md_file.write(f"![Original]({os.path.basename(orig_path)})\n\n")
+                md_file.write(f"![Denoised]({os.path.basename(dns_path)})\n\n")
+                md_file.write(f"![Black & White]({os.path.basename(bw_path)})\n\n")
                 md_file.write(f"{ocr_result}\n\n")
         print(f"Saved markdown and images to {output_dir}")

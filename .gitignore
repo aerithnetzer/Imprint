@@ -25,4 +25,9 @@ Modelfile
 *.log
 *.sh
 outputs
+*.png
+*.jpg
+*.jp2
+*.tiff
 hf-apollo
+.DS_Store
