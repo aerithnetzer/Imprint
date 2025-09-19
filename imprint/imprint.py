@@ -59,7 +59,8 @@ class Imprint:
             config = {"output_format": "html"}
             config_parser = ConfigParser(config)
             converter = PdfConverter(
-                artifact_dict=create_model_dict(), config=config_parser.generate_config_dict()
+                artifact_dict=create_model_dict(),
+                config=config_parser.generate_config_dict(),
             )
             rendered = converter(img)
             text, _, images = text_from_rendered(rendered)
@@ -152,7 +153,9 @@ class Imprint:
             shift_range = np.arange(-15, 16)  # search ±15°
             scores = []
             for s in shift_range:
-                M = cv2.getRotationMatrix2D((gray.shape[1] // 2, gray.shape[0] // 2), s, 1)
+                M = cv2.getRotationMatrix2D(
+                    (gray.shape[1] // 2, gray.shape[0] // 2), s, 1
+                )
                 rotated = cv2.warpAffine(
                     gray_inv,
                     M,
@@ -190,7 +193,9 @@ class Imprint:
         # --- Edge analysis for "textiness" ---
         edges = cv2.Canny(denoised, 50, 150)
 
-        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(edges, connectivity=8)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+            edges, connectivity=8
+        )
         sizes = stats[1:, cv2.CC_STAT_AREA]  # skip background
 
         if len(sizes) == 0:
@@ -372,7 +377,9 @@ class Imprint:
         )
 
         # Convert GrabCut output to binary mask
-        mask_small = np.where((mask_small == 2) | (mask_small == 0), 0, 1).astype("uint8")
+        mask_small = np.where((mask_small == 2) | (mask_small == 0), 0, 1).astype(
+            "uint8"
+        )
 
         # Upscale mask to original resolution
         mask = cv2.resize(mask_small, (width, height), interpolation=cv2.INTER_NEAREST)
@@ -461,7 +468,9 @@ class Imprint:
             )
 
             # Threshold
-            _, binary = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            _, binary = cv2.threshold(
+                denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
 
             # Connected components analysis
             num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
@@ -512,7 +521,9 @@ class Imprint:
                 logger.info("Denoising")
                 dns = self._denoise(img)
                 bw_img = self._make_bw(dns)
-                removed_background = self._background_removal(bw_img, return_bytes=False)
+                removed_background = self._background_removal(
+                    bw_img, return_bytes=False
+                )
                 deskewed = self._deskew(removed_background)
                 ocr_result = self._ocr(
                     deskewed,
