@@ -1,4 +1,4 @@
-# Imprint (Pre-Alpha State)
+# Imprint has migrated to [woolworm](https://www.github.com/nulib-ds/aerithnetzer)
 
 Hello Northwestern Digitization team, welcome to Imprint, your new (hopefully) one-stop shop for digitization.
 I have attempted to abstract as much of the intricacies of image transformation in python. At least to the best of my ability.
