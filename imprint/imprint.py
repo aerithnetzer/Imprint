@@ -27,6 +27,8 @@ from scipy.stats import entropy
 from skimage.measure import shannon_entropy
 from tqdm import tqdm
 
+import imprint
+
 
 class Imprint:
     def __init__(
@@ -506,7 +508,8 @@ class Imprint:
 
             return cleaned
 
-    def load(self, image_path):
+    @staticmethod
+    def load(image_path):
         return cv2.imread(image_path)
 
     def infer(self) -> List[Tuple]:
@@ -598,8 +601,12 @@ class Imprint:
             self.img = img
 
         @staticmethod
-        def process_image():
-            pass
+        def process_image(input_file_path, output_file_path):
+            img = Imprint.load(input_file_path)
+            img = Imprint.deskew_with_hough(img)
+            img = Imprint.binarize_or_gray(img)
+            Imprint.save_image(img, output_file_path)
+            return img
 
         @staticmethod
         def ocr():

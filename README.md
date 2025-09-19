@@ -1,81 +1,62 @@
 # Imprint (Pre-Alpha State)
 
-This code will need extensive refactoring in the future. It does do the job, but it could be better organized and include much more features.
+Hello Northwestern Digitization team, welcome to Imprint, your new (hopefully) one-stop shop for digitization.
+I have attempted to abstract as much of the intricacies of image transformation in python. At least to the best of my ability.
+While we are working on this grant, I will be working on build automation and a CLI for you all so that it can be even easier to use.
 
-## Feature Roadmap
+Here is my current feature list, where I am open to suggestions or requests, because I like this sort of thing:
 
+- [ ] API
+  - [x] Load image
+  - [x] Deskew
+  - [x] Intelligent document binarization/grayscale
+  - [x] Tesseract OCR
+  - [x] Standalone Ollama LLM OCR
+  - [x] Marker Document Understanding LLM OCR
+  - [ ] HathiTrust (currently experimental in a standalone script)
+- [ ] Pipelines
+  - [x] Image processing
+  - [ ] OCR
+  - [ ] HathiTrust
+  - [ ] ???
+  - [ ] Profit
+- [ ] CLI (To be done later)
+- [ ] Figure out how the hell I publish a python package
 
-- [ ] OCR via Huggingface API
-- [x] OCR via Ollama
-- [x] OCR via Tesseract
-- [x] Image de-noising
-- [x] Conversion from RGB to BW
-- [ ] Background Removal
-- [ ] De-skewing
-- [ ] Cropping
+## Prerequisites
 
-Imprint is a document OCR pipeline manager that does the following:
-
-Takes as input a list of pathlike objects.
-
-It will then run image pre-processing functions using [opencv](https://github.com/opencv/opencv-python): denoising the image; and making the image black and white.
-
-
-
-Currently, the OCR model utilizes [Ollama](https://github.com/ollama/ollama) API to call the OCR function.
+You will want to familiarize yourself with the absolute basics of calling object-methods. If you want to use any LLM models, you will need to install [Ollama](https://ollama.com/). Feel free to contact me if you need assistance in setting up Ollama.
 
 ## Quickstart
 
-1. **Install dependencies:**
-
-   ```bash
-   pip install opencv-python matplotlib tqdm ollama
-
-
-
-   ```
-
-2. **Prepare your images:**  
-   Place all document page images (e.g., PNG/JPG) in a directory.
-
-## Usage
+If you are extremely impatient, you can get started with two lines of code
 
 ```python
-from main import Imprint
+from imprint import Imprint
 
-image_paths = [
-    "./test-images/page1.jpg",
-    "./test-images/page2.jpg",
-    # Add more pages as needed
-]
-
-i = Imprint(image_paths, use_transformer=True, transformer_model="gemma3:12b")
-
-
-i.infer()  # Runs OCR pipeline on all images
-
-
-i.save("test-images-output")  # Saves processed images and markdown to output_dir
-
-
-
+Imprint.Pipelines.process_image("inputfilename.jpg", "outputfilename.jpg")
 ```
 
-## Right, But Why?
+In the backend, it looks like this. You can find this code in the `cookbook` directory
 
-Vendors for OCR can be very expensive. This is meant to alleviate the cost of image pre-processing and OCR at Northwestern University Libraries. This program is designed to be run on anything from a jank laptop (using the pytesseract model instead of Ollama) to a high-end server (using Ollama's high-parameter models).
+```python
+from imprint import Imprint
 
-We find that using Gemma3:12B is sufficient, and benchmarks at 30s/page on an Apple M4 Pro Macbook.
+p = Imprint()  # Creates the "Imprint" class
 
+f = "filename.jpg"
+base_name = f.replace(".jpg", "")
 
+# Step 1: Load original
+img = p.load(f)
 
+# Step 2: de-skew
+img = p.deskew_with_hough(img)
 
+# Step 3: This is kinda weird, and currently fine-tuned for use with NU's environmental impact statements
+# Long story short, the programming will use some heuristics to detect if the image is a diagram or mostly text
+# If the program thinks it is text, it will binarize, if it thinks it is a diagram, it will not.
+img = p.binarize_or_gray(img)
 
-
-
-
-
-
-
-
-
+p.save_image(img)
+```

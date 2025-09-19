@@ -15,6 +15,3 @@ img = p.deskew_with_hough(img)
 # Long story short, the programming will use some heuristics to detect if the image is a diagram or mostly text
 # If the program thinks it is text, it will binarize, if it thinks it is a diagram, it will not.
 img = p.binarize_or_gray(img)
-
-
-#
